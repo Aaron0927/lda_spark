@@ -64,6 +64,7 @@ class LDASuite extends FunSuite with BeforeAndAfterAll {
       computedModel = trainer.runGibbsSampling(computedModel)
       val (phi, theta) = trainer.solvePhiAndTheta(computedModel)
       pps(i) = perplexity(data, phi, theta)
+      println(pps(i))
       i += 1
     }
 

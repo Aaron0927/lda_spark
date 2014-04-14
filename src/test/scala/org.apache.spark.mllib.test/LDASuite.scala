@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package test
+package org.apache.spark.mllib.test
 
 import scala.util._
 
@@ -27,13 +27,15 @@ import org.scalatest.FunSuite
 import org.apache.spark.mllib.expectation.GibbsSampling
 import org.apache.spark.mllib.expectation.GibbsSampling._
 import org.apache.spark.SparkContext
+import org.apache.spark.mllib.clustering.LDAComputingParams
+import org.apache.spark.mllib.model.Document
 
 class LDASuite extends FunSuite with BeforeAndAfterAll {
   import LDASuite._
   @transient private var sc: SparkContext = _
 
   override def beforeAll() {
-    sc = new SparkContext("local", "LDA test")
+    sc = new SparkContext("local", "LDA org.apache.spark.mllib.test")
   }
 
   override def afterAll() {
@@ -83,7 +85,7 @@ object LDASuite {
   val incrementalLearning = 10
 
   /**
-   * Generate a random LDA model, i.e. the topic-term matrix.
+   * Generate a random LDA org.apache.spark.mllib.model, i.e. the topic-term matrix.
    */
   def generateRandomLDAModel(numTopics: Int, numTerms: Int): Array[BDV[Double]] = {
     val model = new Array[BDV[Double]](numTopics)

@@ -15,19 +15,22 @@
  * limitations under the License.
  */
 
-package expectation
+package org.apache.spark.mllib.expectation
 
 import scala.util._
 
 import breeze.linalg.{Vector => BV, DenseVector => BDV, sum}
 
 import org.apache.spark.Logging
-import org.apache.spark.mllib.clustering.{LDAComputingParams, LDAParams, Document}
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 
+import org.apache.spark.mllib.clustering.{LDAComputingParams, LDAParams}
+import org.apache.spark.mllib.model.Document
+import org.apache.spark.mllib.expectation.GibbsSampling._
+
 /**
- * Gibbs sampling from a given dataset and model.
+ * Gibbs sampling from a given dataset and org.apache.spark.mllib.model.
  * @param data Dataset, such as corpus.
  * @param numOuterIterations Number of outer iteration.
  * @param numInnerIterations Number of inner iteration, used in each partition.
@@ -41,7 +44,6 @@ class GibbsSampling(
     docTopicSmoothing: Double,
     topicTermSmoothing: Double)
   extends Logging with Serializable {
-  import GibbsSampling._
 
    /**
    * Main function of running a Gibbs sampling method. It contains two phases of total Gibbs

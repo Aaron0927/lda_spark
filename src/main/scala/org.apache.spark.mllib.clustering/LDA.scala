@@ -15,15 +15,16 @@
  * limitations under the License.
  */
 
-package clustering
+package org.apache.spark.mllib.clustering
 
 import breeze.linalg.{DenseVector => BDV}
 
-import org.apache.spark.mllib.expectation.GibbsSampling
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, Logging}
+
+import org.apache.spark.mllib.expectation.GibbsSampling
+import org.apache.spark.mllib.model.Document
 
 trait LDAParams {
 
@@ -169,8 +170,8 @@ object LDA extends Logging {
 
     logInfo("Computing perplexity...")
     val pp = GibbsSampling.perplexity(data, phi, theta)
-    // println(s"final model Phi is $phi")
-    // println(s"final model Theta is $theta")
+    // println(s"final org.apache.spark.mllib.model Phi is $phi")
+    // println(s"final org.apache.spark.mllib.model Theta is $theta")
     println(s"final mode perplexity is $pp")
   }
 }

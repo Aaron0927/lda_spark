@@ -15,6 +15,6 @@
  * limitations under the License.
  */
 
-package model
+package org.apache.spark.mllib.model
 
 case class Document(docId: Int, content: Iterable[Int])

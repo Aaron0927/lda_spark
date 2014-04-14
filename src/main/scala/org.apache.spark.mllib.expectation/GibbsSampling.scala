@@ -1,10 +1,11 @@
-package expectation
+package org.apache.spark.mllib.expectation
 
 import org.jblas.DoubleMatrix
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Logging
-import org.apache.spark.mllib.clustering.{LDAParams, Document}
+import org.apache.spark.mllib.clustering.LDAParams
+import org.apache.spark.mllib.model.Document
 import java.util.Random
 
 class GibbsSampling

@@ -31,18 +31,14 @@ object GibbsSampling extends Logging {
       numDocs: Int,
       numTopics: Int,
       docTopicSmoothing: Double,
-      topicTermSmoothing: Double)
-    : LDAParams =
-  {
+      topicTermSmoothing: Double): LDAParams = {
+
     // construct topic assignment RDD
     logInfo("Start initialization")
 
     val cpInterval = System.getProperty("spark.gibbsSampling.checkPointInterval", "10").toInt
-
     val sc = data.context
-    val zeroParams = LDAParams(numDocs, numTopics, numTerms)
-    val initialParams = sc.accumulable(zeroParams)
-
+    val initialParams = sc.accumulable(LDAParams(numDocs, numTopics, numTerms))
     val initialChosenTopics = data.map { case Document(docId, content) =>
       content.map { term =>
         val topic = uniformDistSampler(new Random(docId ^ term), numTopics)
@@ -51,14 +47,14 @@ object GibbsSampling extends Logging {
       }
     }.cache()
 
-    initialChosenTopics.foreach(_ => ())
+    initialChosenTopics.count()
 
     // Gibbs sampling
     val (params, _, _) = Iterator.iterate((initialParams, initialChosenTopics, 0)) {
       case (lastParams, lastChosenTopics, i) =>
         logInfo("Start Gibbs sampling")
 
-        val params = sc.accumulable(lastParams.value)
+        val params = sc.accumulable(LDAParams(numDocs, numTopics, numTerms))
         val chosenTopics = data.zip(lastChosenTopics).map {
           case (Document(docId, content), topics) =>
             content.zip(topics).map { case (term, topic) =>
@@ -79,7 +75,7 @@ object GibbsSampling extends Logging {
           chosenTopics.checkpoint()
         }
 
-        chosenTopics.foreach(_ => ())
+        chosenTopics.count()
         lastChosenTopics.unpersist()
 
         (params, chosenTopics, i + 1)

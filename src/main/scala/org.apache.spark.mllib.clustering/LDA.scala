@@ -36,9 +36,8 @@ case class LDAParams (
       topicTermSmoothing: Double,
       term: Int,
       docId: Int,
-      seed: Int)
-    : Int =
-  {
+      seed: Int): Int = {
+
     val (numTopics, numTerms) = (topicCounts.length, topicTermCounts.columns)
     val topicThisTerm, topicThisDoc = DoubleMatrix.zeros(numTopics)
     val fraction = topicCounts.add(numTerms * topicTermSmoothing)

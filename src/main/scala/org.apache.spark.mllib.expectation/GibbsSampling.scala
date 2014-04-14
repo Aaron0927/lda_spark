@@ -27,7 +27,6 @@ import org.apache.spark.rdd.RDD
 
 import org.apache.spark.mllib.clustering.{LDAComputingParams, LDAParams}
 import org.apache.spark.mllib.model.Document
-import org.apache.spark.mllib.expectation.GibbsSampling._
 
 /**
  * Gibbs sampling from a given dataset and org.apache.spark.mllib.model.
@@ -44,6 +43,7 @@ class GibbsSampling(
     docTopicSmoothing: Double,
     topicTermSmoothing: Double)
   extends Logging with Serializable {
+  import GibbsSampling._
 
    /**
    * Main function of running a Gibbs sampling method. It contains two phases of total Gibbs

@@ -1,4 +1,4 @@
-package org.apache.spark.mllib.clustering
+package model
 
 
 case class Document(docId: Int, content: Array[Int])

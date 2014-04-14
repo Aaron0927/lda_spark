@@ -1,4 +1,4 @@
-package org.apache.spark.mllib.clustering
+package clustering
 
 import org.jblas.DoubleMatrix
 

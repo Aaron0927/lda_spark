@@ -1,4 +1,4 @@
-package org.apache.spark.mllib.expectation
+package expectation
 
 import org.jblas.DoubleMatrix
 

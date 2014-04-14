@@ -1,29 +1,39 @@
-package org.apache.spark.mllib.util
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
 import scala.util.Random
 import scala.collection.mutable
 
+import org.apache.spark.rdd.RDD
+import org.apache.spark.SparkContext
+import org.apache.spark.SparkContext._
+import org.apache.spark.storage.StorageLevel
+
 /**
- * Implement the gibbs sampling LDA on spark
- * Input file's format is: docId \t date \t words(splited by " ")
- * Output the topic distribution of each file in "out/topicDistOnDoc" default
- * and the topic in "out/wordDistOnTopic" default
- *
- * huangwaleking@gmail.com
- * liupeng9966@163.com
- * 2013-04-24
+ * Implement the gibbs sampling LDA on spark. Input file's format is: docId \t date \t words(splited
+ * by " "). Output the topic distribution of each file in "out/topicDistOnDoc" default and the topic
+ * in "out/wordDistOnTopic" default.
  *
  * gist: https://gist.github.com/waleking/5477002
  */
 object SparkGibbsLDA {
 
   /**
-   * print out topics
-   * output topK words in each topic
+   * Print out topics, output topK words in each topic.
    */
   def topicsInfo(
       nkv: Array[Array[Int]],
@@ -45,11 +55,6 @@ object SparkGibbsLDA {
     }.toString
   }
 
-  /**
-   * gibbs sampling
-   * topicAssignArr Array[(word,topic)]
-   * nmk: Array[n_{mk}]
-   */
   def gibbsSampling(
       topicAssignArr: Array[(Int, Int)],
       nmk: Array[Int],
@@ -64,18 +69,18 @@ object SparkGibbsLDA {
     for (i <- 0 until length) {
       val topic = topicAssignArr(i)._2
       val word = topicAssignArr(i)._1
-      //reset nkv,nk and nmk
+
       nmk(topic) = nmk(topic) - 1
       nkv(topic)(word) = nkv(topic)(word) - 1
       nk(topic) = nk(topic) - 1
-      //sampling
-      val topicDist = new Array[Double](kTopic) //Important, not Array[Double](kTopic) which will lead to Array(4.0)
+
+      val topicDist = new Array[Double](kTopic)
       for (k <- 0 until kTopic) {
         topicDist(k) = (nmk(k).toDouble + alpha) * (nkv(k)(word) + beta) / (nk(k) + vSize * beta)
       }
-      val newTopic = getRandFromMultinomial(topicDist)
-      topicAssignArr(i) = (word, newTopic) //Important, not (newTopic,word)
-      //update nkv,nk and nmk locally
+      val newTopic = sampleFromMultinomial(topicDist)
+      topicAssignArr(i) = (word, newTopic)
+
       nmk(newTopic) = nmk(newTopic) + 1
       nkv(newTopic)(word) = nkv(newTopic)(word) + 1
       nk(newTopic) = nk(newTopic) + 1
@@ -83,56 +88,46 @@ object SparkGibbsLDA {
     (topicAssignArr, nmk)
   }
 
-  // get nkv matrix
-  //List(((0,0),2), ((0,1),1),((word,topic),count)) 
-  //=> Array[Array(...)]
-  def updateNKV(wordsTopicReduced: List[((Int, Int), Int)], kTopic: Int, vSize: Int) = {
+  def updateNKV(
+      wordsTopicReduced: List[((Int, Int), Int)],
+      kTopic: Int,
+      vSize: Int): Array[Array[Int]] = {
     val nkv = new Array[Array[Int]](kTopic)
     for (k <- 0 until kTopic) {
       nkv(k) = new Array[Int](vSize)
     }
-    wordsTopicReduced.foreach(t => { //t is ((Int,Int),Int) which is ((word,topic),count)
+    wordsTopicReduced.foreach{ t =>
       val word = t._1._1
       val topic = t._1._2
       val count = t._2
       nkv(topic)(word) = nkv(topic)(word) + count
-    })
+    }
     nkv
   }
 
-  //get nk vector
-  //List(((0,0),2), ((0,1),1),((word,topic),count)) 
-  //=> Array[Array(...)]
-  def updateNK(wordsTopicReduced: List[((Int, Int), Int)], kTopic: Int, vSize: Int) = {
+  def updateNK(wordsTopicReduced: List[((Int, Int), Int)], kTopic: Int, vSize: Int): Array[Int] = {
     val nk = new Array[Int](kTopic)
-    wordsTopicReduced.foreach(t => { //t is ((Int,Int),Int) which is ((word,topic),count)
+    wordsTopicReduced.foreach { t =>
       val topic = t._1._2
       val count = t._2
       nk(topic) = nk(topic) + count
-    })
+    }
     nk
   }
 
-  /**
-   *  get a topic from Multinomial Distribution
-   *  usage example: k=getRand(Array(0.1, 0.2, 0.3,1.1)),
-   */
-  def getRandFromMultinomial(arrInput: Array[Double]): Int = {
+  def sampleFromMultinomial(arrInput: Array[Double]): Int = {
     val rand = Random.nextDouble()
     val s = doubleArrayOps(arrInput).sum
     val arrNormalized = doubleArrayOps(arrInput).map { e => e / s }
-    var localsum = 0.0
+    var localSum = 0.0
     val cumArr = doubleArrayOps(arrNormalized).map { dist =>
-      localsum = localsum + dist
-      localsum
+      localSum = localSum + dist
+      localSum
     }
-    //return the new topic
     doubleArrayOps(cumArr).indexWhere(cumDist => cumDist >= rand)
   }
 
   def restartSpark(sc: SparkContext, scMaster: String, remote: Boolean): SparkContext = {
-    // After iterations, Spark will create a lot of RDDs and I only have 4g mem for it.
-    // So I have to restart the Spark. The thread.sleep is for the shutting down of Akka.
     sc.stop()
     Thread.sleep(2000)
     if (remote) {
@@ -142,10 +137,6 @@ object SparkGibbsLDA {
     }
   }
 
-  /**
-   * start spark at 192.9.200.175:7077 if remote==true
-   * or start it locally when remote==false
-   */
   def startSpark(remote: Boolean) = {
     if (remote) {
       val scMaster = "spark://db-PowerEdge-2970:7077" // e.g. local[4]
@@ -158,12 +149,9 @@ object SparkGibbsLDA {
     }
   }
 
-  /**
-   * save topic distribution of doc in HDFS
-   * INPUT: doucments which is RDD[(docId,topicAssigments,nmk)]
-   * format: docID, topic distribution
-   */
-  def saveDocTopicDist(documents: RDD[(Long, Array[(Int, Int)], Array[Int])], pathTopicDistOnDoc: String) = {
+  def saveDocTopicDist(
+      documents: RDD[(Long, Array[(Int, Int)], Array[Int])],
+      pathTopicDistOnDoc: String) {
     documents.map {
       case (docId, topicAssign, nmk) =>
         val docLen = topicAssign.length
@@ -172,44 +160,37 @@ object SparkGibbsLDA {
     }.saveAsTextFile(pathTopicDistOnDoc)
   }
 
-  /**
-   * save word distribution on topic into HDFS
-   * output format:
-   * (topicID,List((#/x,0.05803571428571429)...(与/p,0.04017857142857143),...))
-   *
-   */
-  def saveWordDistTopic(sc: SparkContext, nkv: Array[Array[Int]], nk: Array[Int],
-    allWords: List[String], vSize: Int, topKwordsForDebug: Int, pathWordDistOnTopic: String) {
+  def saveWordDistTopic(
+      sc: SparkContext,
+      nkv: Array[Array[Int]],
+      nk: Array[Int],
+      allWords: List[String],
+      vSize: Int,
+      topKWordsForDebug: Int,
+      pathWordDistOnTopic: String) {
     val topicK = nkv.length
+
     //add topicid for array
     val nkvWithId = Array.fill(topicK) { (0, Array[Int](vSize)) }
     for (k <- 0 until topicK) {
       nkvWithId(k) = (k, nkv(k))
     }
-    //output topKwordsForDebug words
-    val res = sc.parallelize(nkvWithId).map { t => //topicId, Array(2,3,3,4,...)
-      {
-        val k = t._1
-        val distOnTopic = for (v <- 0 until vSize) yield (v, t._2(v))
-        val sorted = distOnTopic.sortWith((tupleA, tupleB) => tupleA._2 > tupleB._2)
-        val topDist = { for (v <- 0 until topKwordsForDebug) yield (allWords(sorted(v)._1), sorted(v)._2.toDouble / nk(k).toDouble) }.toList
-        (k, topDist)
-      }
+
+    //output topKWordsForDebug words
+    val res = sc.parallelize(nkvWithId).map { t =>
+      val k = t._1
+      val distOnTopic = for (v <- 0 until vSize) yield (v, t._2(v))
+      val sorted = distOnTopic.sortWith((tupleA, tupleB) => tupleA._2 > tupleB._2)
+      val topDist = {
+        for (v <- 0 until topKWordsForDebug)
+          yield (allWords(sorted(v)._1), sorted(v)._2.toDouble / nk(k).toDouble)
+      }.toList
+      (k, topDist)
     }
     res.saveAsTextFile(pathWordDistOnTopic)
   }
 
-  /**
-   * the lda's executing function
-   * do the following things:
-   * 1,start spark
-   * 2,read files into HDFS
-   * 3,build a dictionary for alphabet : wordIndexMap
-   * 4,init topic assignments for each word in the corpus
-   * 5,use gibbs sampling to infer the topic distribution of doc and estimate the parameter nkv and nk
-   * 6,save the result in HDFS (result part 1: topic distribution of doc, result part 2: top words in each topic)
-   */
-  def lda(
+  def ldaMain(
       filename: String,
       kTopic: Int,
       alpha: Double,
@@ -282,7 +263,7 @@ object SparkGibbsLDA {
     var nkGlobal = sc.broadcast(nk)
     //nk.foreach(println)
 
-    //Step5, use gibbs sampling to infer the topic distribution in doc and estimate the parameter nkv and nk
+    //Step5, use gibbs sampling to infer the topic distribution in doc and estimate the parameter
     var iterativeInputDocuments = documents
     var updatedDocuments = iterativeInputDocuments
     for (iter <- 0 until maxIter) {
@@ -358,42 +339,23 @@ object SparkGibbsLDA {
   }
 
   def main(args: Array[String]) {
-    //val fileName = "/tmp/ldasrc5000.txt"
     val fileName="/tmp/ldasrc.txt"
-    //val fileName = "ldasrcSmall.txt"
     val kTopic = 10
     val alpha = 0.45
     val beta = 0.01
-    val maxIter = 1000
+    val maxIterations = 1000
     val remote = true
-    val topKwordsForDebug = 10
-    var pathTopicDistOnDoc = ""
-    var pathWordDistOnTopic = ""
-    if (remote) {
-      pathTopicDistOnDoc = "hdfs://192.9.200.175:9000/out/topicDistOnDoc"
-      pathWordDistOnTopic = "hdfs://192.9.200.175:9000/out/wordDistOnTopic"
-    } else {
-      pathTopicDistOnDoc = "out/topicDistOnDoc"
-      pathWordDistOnTopic = "out/wordDistOnTopic"
-    }
-    lda(fileName, kTopic, alpha, beta, maxIter, remote, topKwordsForDebug, pathTopicDistOnDoc, pathWordDistOnTopic)
+    val topKWordsForDebug = 10
+    val pathTopicDistOnDoc = "hdfs://192.9.200.175:9000/out/topicDistOnDoc"
+    val pathWordDistOnTopic = "hdfs://192.9.200.175:9000/out/wordDistOnTopic"
+    ldaMain(fileName,
+      kTopic,
+      alpha,
+      beta,
+      maxIterations,
+      remote,
+      topKWordsForDebug,
+      pathTopicDistOnDoc,
+      pathWordDistOnTopic)
   }
-
-  //  def main(args: Array[String]) {
-  //    if (args.length < 3) {
-  //     println("usage: java -classpath jarname topic.SparkGibbsLDA filename kTopic alpha beta maxIter " +
-  //     	"remote[=true|false] topKWordsForDebug pathTopicDistOnDoc pathWordDistOnTopic")
-  //    } else {
-  //      val filename = args(0)//e.g. /tmp/ldasrc5000.txt
-  //      val kTopic = args(1).toInt //e.g. 4
-  //      val alpha = args(2).toDouble //e.g. 0.45
-  //      val beta = args(3).toDouble //e.g. 0.01
-  //      val maxIter = args(4).toInt //e.g. 1000 
-  //      val remote = args(5).toBoolean //true means run on db-PowerEdge-2970:7077 (192.9.200.175), false mean run on local
-  //      val topKwordsForDebug = args(6).toInt //e.g. 10
-  //      val pathTopicDistOnDoc=args(7) //save topic distribution of each file, e.g. out/topicDistOnDoc
-  //      val pathWordDistOnTopic=args(8) //save word distribution of toipc, e.g. out/wordDistOnTopic
-  //    }
-  //  }
-
 }

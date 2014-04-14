@@ -36,7 +36,7 @@ case class LDAParams (
       topicTermSmoothing: Double,
       term: Int,
       docId: Int,
-      seed: Int): Int = {
+      rand: Random): Int = {
 
     val (numTopics, numTerms) = (topicCounts.length, topicTermCounts.columns)
     val topicThisTerm, topicThisDoc = DoubleMatrix.zeros(numTopics)
@@ -53,14 +53,14 @@ case class LDAParams (
       .muli(topicThisDoc)
       .divi(topicThisTerm.sum)
 
-    multinomialDistSampler(topicThisTerm, seed)
+    multinomialDistSampler(topicThisTerm, rand)
   }
 
   /**
    * A multinomial distribution sampler, using roulette method to sample an Int back.
    */
-  private def multinomialDistSampler(dist: DoubleMatrix, seed: Int): Int = {
-    val roulette = new Random(seed).nextDouble()
+  private def multinomialDistSampler(dist: DoubleMatrix, rand: Random): Int = {
+    val roulette = rand.nextDouble()
 
     def loop(index: Int, accum: Double): Int = {
       val sum = accum + dist.get(index)

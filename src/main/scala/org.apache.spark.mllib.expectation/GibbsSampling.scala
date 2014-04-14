@@ -39,9 +39,11 @@ object GibbsSampling extends Logging {
     val cpInterval = System.getProperty("spark.gibbsSampling.checkPointInterval", "10").toInt
     val sc = data.context
     val initialParams = sc.accumulable(LDAParams(numDocs, numTopics, numTerms))
+    val rand = new Random(42)
     val initialChosenTopics = data.map { case Document(docId, content) =>
       content.map { term =>
-        val topic = uniformDistSampler(new Random(docId ^ term), numTopics)
+        // val topic = uniformDistSampler(new Random(docId ^ term), numTopics)
+        val topic = uniformDistSampler(rand, numTopics)
         initialParams += (docId, term, topic, 1)
         topic
       }
@@ -54,15 +56,15 @@ object GibbsSampling extends Logging {
       case (lastParams, lastChosenTopics, i) =>
         logInfo("Start Gibbs sampling")
 
+        val rand = new Random(42 + i * i)
         val params = sc.accumulable(LDAParams(numDocs, numTopics, numTerms))
         val chosenTopics = data.zip(lastChosenTopics).map {
           case (Document(docId, content), topics) =>
             content.zip(topics).map { case (term, topic) =>
               lastParams += (docId, term, topic, -1)
 
-              val seed = docId ^ term + i
               val chosenTopic = lastParams.localValue.dropOneDistSampler(
-                docTopicSmoothing, topicTermSmoothing, term, docId, seed)
+                docTopicSmoothing, topicTermSmoothing, term, docId, rand)
 
               lastParams += (docId, term, chosenTopic, 1)
               params += (docId, term, chosenTopic, 1)

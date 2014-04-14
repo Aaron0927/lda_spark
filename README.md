@@ -8,3 +8,11 @@ lda_spark
 * A version implemented with mapPartitions
 
 * A version implemented with Accumulater
+
+Please select from according branch.
+
+TODO:
+
+* A version with log-based update, sharding parameters, broadcast instead of serialization and even optimized dropOneSampler.
+
+* Streaming LDA cooperate with current incremental LDA.

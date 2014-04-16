@@ -2,6 +2,9 @@ package org.apache.spark.mllib.clustering
 
 import org.jblas.DoubleMatrix
 
+import breeze.linalg.{DenseVector => BDV, sum}
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
+
 import org.apache.spark.mllib.expectation.GibbsSampling
 import org.apache.spark.mllib.model.Document
 import org.apache.spark.rdd.RDD
@@ -9,61 +12,71 @@ import org.apache.spark.{AccumulableParam, SparkContext, Logging}
 import java.util.Random
 
 case class LDAParams (
-    docCounts: DoubleMatrix,
-    topicCounts: DoubleMatrix,
-    docTopicCounts: DoubleMatrix,
-    topicTermCounts: DoubleMatrix)
+    docCounts: Vector,
+    topicCounts: Vector,
+    docTopicCounts: Array[Vector],
+    topicTermCounts: Array[Vector])
   extends Serializable {
 
   def update(docId: Int, term: Int, topic: Int, inc: Int) = {
-    docCounts.put(docId, 0, docCounts.get(docId, 0) + inc)
-    topicCounts.put(topic, 0, topicCounts.get(topic, 0) + inc)
-    docTopicCounts.put(docId, topic, docTopicCounts.get(docId, topic) + inc)
-    topicTermCounts.put(topic, term, topicTermCounts.get(topic, term) + inc)
+    docCounts(docId) += inc
+    topicCounts(topic) += inc
+    docTopicCounts(docId)(topic) += inc
+    topicTermCounts(topic)(term) += inc
     this
   }
 
   def merge(other: LDAParams) = {
-    docCounts.addi(other.docCounts)
-    topicCounts.addi(other.topicCounts)
-    docTopicCounts.addi(other.docTopicCounts)
-    topicTermCounts.addi(other.topicTermCounts)
+    docCounts.toBreeze += other.docCounts.toBreeze
+    topicCounts.toBreeze += other.topicCounts.toBreeze
+    var i = 0
+    while (i < docTopicCounts.length) {
+      docTopicCounts(i).toBreeze += other.docTopicCounts(i).toBreeze
+      i += 1
+    }
+    i = 0
+    while (i < topicTermCounts.length) {
+      topicTermCounts(i).toBreeze += other.topicTermCounts(i).toBreeze
+      i += 0
+    }
     this
   }
 
-  def dropOneDistSampler(
+  /**
+   * This function used for computing the new distribution after drop one from current document,
+   * which is a really essential part of Gibbs sampling for LDA, you can refer to the paper:
+   * <I>Parameter estimation for text analysis</I>
+   */
+  private def dropOneDistSampler(
       docTopicSmoothing: Double,
       topicTermSmoothing: Double,
-      term: Int,
-      docId: Int,
+      termIdx: Int,
+      docIdx: Int,
       rand: Random): Int = {
-
-    val (numTopics, numTerms) = (topicCounts.length, topicTermCounts.columns)
-    val topicThisTerm, topicThisDoc = DoubleMatrix.zeros(numTopics)
-    val fraction = topicCounts.add(numTerms * topicTermSmoothing)
-
-    topicTermCounts.getColumn(term, topicThisTerm)
-    docTopicCounts.getRow(docId, topicThisDoc)
-
-    topicThisTerm.addi(topicTermSmoothing)
-    topicThisDoc.addi(docTopicSmoothing)
-
-    topicThisTerm
-      .divi(fraction)
-      .muli(topicThisDoc)
-      .divi(topicThisTerm.sum)
-
-    multinomialDistSampler(topicThisTerm, rand)
+    val (numTopics, numTerms) = (topicCounts.size, topicTermCounts.head.size)
+    val topicThisTerm = BDV.zeros[Double](numTopics)
+    var i = 0
+    while (i < numTopics) {
+      topicThisTerm(i) =
+        ((topicTermCounts(i)(termIdx) + topicTermSmoothing)
+          / (topicCounts(i) + (numTerms * topicTermSmoothing))
+        ) + (docTopicCounts(docIdx)(i) + docTopicSmoothing)
+      i += 1
+    }
+    multinomialDistSampler(rand, topicThisTerm)
   }
 
   /**
    * A multinomial distribution sampler, using roulette method to sample an Int back.
    */
-  private def multinomialDistSampler(dist: DoubleMatrix, rand: Random): Int = {
+  private[mllib] def multinomialDistSampler(rand: Random, dist: BDV[Double]): Int = {
     val roulette = rand.nextDouble()
 
+    dist :/= sum[BDV[Double], Double](dist)
+
     def loop(index: Int, accum: Double): Int = {
-      val sum = accum + dist.get(index)
+      if(index == dist.length) return dist.length - 1
+      val sum = accum + dist(index)
       if (sum >= roulette) index else loop(index + 1, sum)
     }
 
@@ -75,10 +88,10 @@ object LDAParams {
   implicit val ldaParamsAP = new LDAParamsAccumulableParam
 
   def apply(numDocs: Int, numTopics: Int, numTerms: Int) = new LDAParams(
-    DoubleMatrix.zeros(numDocs),
-    DoubleMatrix.zeros(numTopics),
-    DoubleMatrix.zeros(numDocs, numTopics),
-    DoubleMatrix.zeros(numTopics, numTerms))
+    Vectors.fromBreeze(BDV.zeros[Double](numDocs)),
+    Vectors.fromBreeze(BDV.zeros[Double](numTopics)),
+    Array(0 until numDocs: _*).map(_ => Vectors.fromBreeze(BDV.zeros[Double](numTopics))),
+    Array(0 until numTopics: _*).map(_ => Vectors.fromBreeze(BDV.zeros[Double](numTerms))))
 }
 
 class LDAParamsAccumulableParam extends AccumulableParam[LDAParams, (Int, Int, Int, Int)] {

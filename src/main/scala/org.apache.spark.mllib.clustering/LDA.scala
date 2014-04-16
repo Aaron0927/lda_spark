@@ -9,7 +9,7 @@ import org.apache.spark.mllib.expectation.GibbsSampling
 import org.apache.spark.mllib.model.Document
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{AccumulableParam, SparkContext, Logging}
-import java.util.Random
+import scala.util.Random
 
 case class LDAParams (
     docCounts: Vector,
@@ -47,7 +47,7 @@ case class LDAParams (
    * which is a really essential part of Gibbs sampling for LDA, you can refer to the paper:
    * <I>Parameter estimation for text analysis</I>
    */
-  private def dropOneDistSampler(
+  def dropOneDistSampler(
       docTopicSmoothing: Double,
       topicTermSmoothing: Double,
       termIdx: Int,

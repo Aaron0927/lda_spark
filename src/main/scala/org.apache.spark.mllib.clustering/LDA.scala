@@ -1,8 +1,6 @@
 package org.apache.spark.mllib.clustering
 
-import org.jblas.DoubleMatrix
-
-import breeze.linalg.{DenseVector => BDV, sum}
+import breeze.linalg.{DenseVector => BDV}
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 
 import org.apache.spark.mllib.expectation.GibbsSampling
@@ -63,24 +61,7 @@ case class LDAParams (
         ) + (docTopicCounts(docIdx)(i) + docTopicSmoothing)
       i += 1
     }
-    multinomialDistSampler(rand, topicThisTerm)
-  }
-
-  /**
-   * A multinomial distribution sampler, using roulette method to sample an Int back.
-   */
-  private[mllib] def multinomialDistSampler(rand: Random, dist: BDV[Double]): Int = {
-    val roulette = rand.nextDouble()
-
-    dist :/= sum[BDV[Double], Double](dist)
-
-    def loop(index: Int, accum: Double): Int = {
-      if(index == dist.length) return dist.length - 1
-      val sum = accum + dist(index)
-      if (sum >= roulette) index else loop(index + 1, sum)
-    }
-
-    loop(0, 0.0)
+    GibbsSampling.multinomialDistSampler(rand, topicThisTerm)
   }
 }
 
@@ -113,21 +94,19 @@ class LDA private (
     var numDocs: Int,
     var numTerms: Int)
   extends Serializable with Logging {
-
-  def run(input: RDD[Document]): LDAParams = {
-    GibbsSampling.runGibbsSampling(
+  def run(input: RDD[Document]): (GibbsSampling, LDAParams) = {
+    val trainer = new GibbsSampling(
       input,
       numIteration,
       1,
-      numTerms,
-      numDocs,
-      numTopics,
       docTopicSmoothing,
-      topicTermSmoothing)
+      topicTermSmoothing
+    )
+    (trainer, trainer.runGibbsSampling(LDAParams(numDocs, numTopics, numTerms)))
   }
 }
 
-object LDA {
+object LDA extends Logging {
 
   def train(
       data: RDD[Document],
@@ -136,18 +115,15 @@ object LDA {
       topicTermSmoothing: Double,
       numIterations: Int,
       numDocs: Int,
-      numTerms: Int)
-    : (DoubleMatrix, DoubleMatrix) =
-  {
+      numTerms: Int): (Array[Vector], Array[Vector]) = {
     val lda = new LDA(numTopics,
       docTopicSmoothing,
       topicTermSmoothing,
       numIterations,
       numDocs,
       numTerms)
-    val model = lda.run(data)
-    GibbsSampling.
-      solvePhiAndTheta(model, numTopics, numTerms, docTopicSmoothing, topicTermSmoothing)
+    val (trainer, model) = lda.run(data)
+    trainer.solvePhiAndTheta(model)
   }
 
   def main(args: Array[String]) {

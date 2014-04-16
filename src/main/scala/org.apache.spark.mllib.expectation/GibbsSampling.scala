@@ -19,7 +19,7 @@ package org.apache.spark.mllib.expectation
 
 import scala.util.Random
 
-import breeze.linalg.{DenseVector => BDV}
+import breeze.linalg.{DenseVector => BDV, sum}
 
 import org.apache.spark.Logging
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
@@ -163,6 +163,23 @@ object GibbsSampling extends Logging {
    * A uniform distribution sampler, which is only used for initialization.
    */
   private def uniformDistSampler(rand: Random, dimension: Int): Int = rand.nextInt(dimension)
+
+  /**
+   * A multinomial distribution sampler, using roulette method to sample an Int back.
+   */
+  def multinomialDistSampler(rand: Random, dist: BDV[Double]): Int = {
+    val roulette = rand.nextDouble()
+
+    dist :/= sum[BDV[Double], Double](dist)
+
+    def loop(index: Int, accum: Double): Int = {
+      if(index == dist.length) return dist.length - 1
+      val sum = accum + dist(index)
+      if (sum >= roulette) index else loop(index + 1, sum)
+    }
+
+    loop(0, 0.0)
+  }
 
   /**
    * Perplexity is a kind of evaluation method of LDA. Usually it is used on unseen data. But here

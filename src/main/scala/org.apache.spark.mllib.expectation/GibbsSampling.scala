@@ -17,7 +17,7 @@
 
 package org.apache.spark.mllib.expectation
 
-import scala.util.Random
+import java.util.Random
 
 import breeze.linalg.{DenseVector => BDV, sum}
 
@@ -146,11 +146,20 @@ object GibbsSampling extends Logging {
     val initialParams = sc.accumulable(params)
     val rand = new Random(42)
     val initialChosenTopics = data.map { case Document(docId, content) =>
-      content.map { term =>
-        // val topic = uniformDistSampler(new Random(docId ^ term), numTopics)
-        val topic = uniformDistSampler(rand, params.topicCounts.size)
-        initialParams += (docId, term, topic, 1)
-        topic
+      val docTopics = params.docTopicCounts(docId)
+      if (docTopics.toBreeze.norm(2) == 0) {
+        content.map { term =>
+          // val topic = uniformDistSampler(new Random(docId ^ term), numTopics)
+            val topic = uniformDistSampler(rand, params.topicCounts.size)
+            initialParams +=(docId, term, topic, 1)
+            topic
+        }
+      } else {
+        content.map { term =>
+            val topicTerms = Vectors.dense(params.topicTermCounts.map(vec => vec(term))).toBreeze
+            val dist = docTopics.toBreeze :* topicTerms
+            multinomialDistSampler(rand, dist.asInstanceOf[BDV[Double]])
+        }
       }
     }.cache()
 

@@ -7,7 +7,7 @@ import org.apache.spark.mllib.expectation.GibbsSampling
 import org.apache.spark.mllib.model.Document
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{AccumulableParam, SparkContext, Logging}
-import scala.util.Random
+import java.util.Random
 
 case class LDAParams (
     docCounts: Vector,
@@ -17,10 +17,10 @@ case class LDAParams (
   extends Serializable {
 
   def update(docId: Int, term: Int, topic: Int, inc: Int) = {
-    docCounts(docId) += inc
-    topicCounts(topic) += inc
-    docTopicCounts(docId)(topic) += inc
-    topicTermCounts(topic)(term) += inc
+    docCounts.toBreeze(docId) += inc
+    topicCounts.toBreeze(topic) += inc
+    docTopicCounts(docId).toBreeze(topic) += inc
+    topicTermCounts(topic).toBreeze(term) += inc
     this
   }
 
@@ -35,7 +35,7 @@ case class LDAParams (
     i = 0
     while (i < topicTermCounts.length) {
       topicTermCounts(i).toBreeze += other.topicTermCounts(i).toBreeze
-      i += 0
+      i += 1
     }
     this
   }

@@ -17,7 +17,7 @@
 
 package org.apache.spark.mllib.test
 
-import scala.util._
+import java.util.Random
 
 import breeze.linalg.{DenseVector => BDV}
 import breeze.stats.distributions.Poisson
@@ -67,6 +67,7 @@ class LDASuite extends FunSuite with BeforeAndAfterAll {
       i += 1
     }
 
+    pps.foreach(println)
     val ppsDiff = pps.init.zip(pps.tail).map { case (lhs, rhs) => lhs - rhs }
     assert(ppsDiff.count(_ > 0).toDouble / ppsDiff.size > 0.6)
     assert(pps.head - pps.last > 0)
@@ -136,11 +137,12 @@ object LDASuite {
       numTerms: Int,
       numTopics: Int): Array[Document] = {
     (0 until numDocs).map { i =>
+      val rand = new Random()
       val numTermsPerDoc = Poisson.distribution(expectedDocLength).sample()
-      val numTopicsPerDoc = Random.nextInt(numTopics / 2) + 1
+      val numTopicsPerDoc = rand.nextInt(numTopics / 2) + 1
       val topicDist = BDV.zeros[Double](numTopics)
       (0 until numTopicsPerDoc).foreach { _ =>
-        topicDist(Random.nextInt(numTopics)) += 1
+        topicDist(rand.nextInt(numTopics)) += 1
       }
       Document(i, ldaSampler(model, topicDist, numTermsPerDoc))
     }.toArray

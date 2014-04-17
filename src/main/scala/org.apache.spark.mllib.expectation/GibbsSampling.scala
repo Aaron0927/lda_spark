@@ -156,14 +156,16 @@ object GibbsSampling extends Logging {
       data: RDD[Document]): (LDAComputingParams, RDD[Iterable[Int]]) = {
     val init = data.mapPartitionsWithIndex { case (index, iterator) =>
       val rand = new Random(42 + index)
-      val docTopics = params.currDocTopicCounts(index)
       val assignedTopics = iterator.map { case Document(docId, content) =>
-        content.map { term =>
-          if (docTopics.norm(2) == 0) {
+        val docTopics = params.currDocTopicCounts(docId)
+        if (docTopics.norm(2) == 0) {
+          content.map { term =>
             val topic = uniformDistSampler(rand, docTopics.size)
             params.inc(docId, term, topic)
             topic
-          } else {
+          }
+        } else {
+          content.map { term =>
             val topicTerms = Vectors.dense(params.currTopicTermCounts.map(vec => vec(term))).toBreeze
             val dist = docTopics :* topicTerms
             multinomialDistSampler(rand, dist)

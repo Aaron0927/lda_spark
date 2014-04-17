@@ -64,9 +64,10 @@ class LDASuite extends FunSuite with BeforeAndAfterAll {
       computedModel = trainer.runGibbsSampling(computedModel)
       val (phi, theta) = trainer.solvePhiAndTheta(computedModel)
       pps(i) = perplexity(data, phi, theta)
-      println(pps(i))
       i += 1
     }
+
+    pps.foreach(println)
 
     val ppsDiff = pps.init.zip(pps.tail).map { case (lhs, rhs) => lhs - rhs }
     assert(ppsDiff.count(_ > 0).toDouble / ppsDiff.size > 0.6)
